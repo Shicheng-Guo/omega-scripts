@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+
+script_name=dq2batch.sh
+
+if [ $# == 0 ] 
+    then 
+    files=$(cat)
+else 
+    for arg in $@
+    do 
+	case $arg in 
+	    --help )
+		echo "usage: ${0##*/} <container list>"
+		return 1 ;;
+	    *)
+		files+=${arg}" " ;;
+	esac
+    done
+fi
+
+if ! command -v voms-proxy-init > /dev/null
+then 
+    echo "need to setup voms-proxy-init" 1>&2
+    return 1
+fi 
+voms-proxy-init -voms atlas -out local_cert
+
+
+cat >| $script_name <<EOF
+shopt -s expand_aliases
+
+export ATLAS_LOCAL_ROOT_BASE=/home/hep/share/app/atlas/ATLASLocalRootBase
+alias setupATLAS='source \${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh'
+setupATLAS --quiet
+
+dq2script=\${ATLAS_LOCAL_ROOT_BASE}/packageSetups/atlasLocalDQ2ClientSetup.sh
+alias localSetupDQ2Client='source \${dq2script}'
+
+opts="--skipConfirm --dq2ClientVersion \${dq2ClientVersionVal} --quiet"
+localSetupDQ2Client \$opts
+
+echo 'submitted from: ' \$PBS_O_WORKDIR 
+cd \$PBS_O_WORKDIR
+
+voms-proxy-init -voms atlas -noregen -q -cert local_cert
+EOF
+
+# cat ~/scripts/dqsetup.sh >| $script_name
+
+file_array=(${files})
+
+for i in ${!file_array[*]}
+do 
+    newname=${script_name%.sh}-${i}.sh
+    cp $script_name $newname
+    echo "dq2-get ${file_array[$i]}" >> $newname
+    qsub -q hep -l walltime=01:00:00:00 $newname
+
+done
+
