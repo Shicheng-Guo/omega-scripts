@@ -22,7 +22,6 @@ working directory may become littered with shell scripts and batch output.
 
 This is supposed to be stupidly easy to use. If you have questions (or 
 better yet, suggestions) ask Dan. 
-Dan likes to help. 
 EOF
 }
 script_name=dq2batch.sh
@@ -43,6 +42,9 @@ else
 	case $arg in 
 	    --help )
 		doc
+		exit 1 ;;
+	    -h) 
+		doc 
 		exit 1 ;;
 	    *)
 		files+=${arg}" " ;;
