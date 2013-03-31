@@ -20,7 +20,8 @@ NOTE: You should only run this in an empty directory where there is room
 to download lots of data! The messy nature of submitting to PBS means your 
 working directory may become littered with shell scripts and batch output. 
 
-This is supposed to be stupidly easy to use. If you have questions, ask Dan. 
+This is supposed to be stupidly easy to use. If you have questions (or 
+better yet, suggestions) ask Dan. 
 Dan likes to help. 
 EOF
 }
