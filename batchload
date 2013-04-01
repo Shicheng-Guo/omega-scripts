@@ -12,8 +12,6 @@ doc() {
 Creates and submits dq2-get jobs to PBS. One job will be created for 
 each container listed. 
 
-With no containers, will read from a pipe (if one exists). 
-
 The datasets will be downloaded to your working directory. 
 
 NOTE: You should only run this in an empty directory where there is room 
@@ -58,7 +56,7 @@ then
     exit 1
 fi 
 voms-proxy-init -voms atlas -out local_cert
-if [[ $? ]] 
+if [[ $? != 0 ]] 
 then 
     echo 'voms failure, quitting...' 1>&2
     exit 1
