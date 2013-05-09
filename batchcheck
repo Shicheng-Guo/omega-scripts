@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+
+usage() { 
+    cat <<EOF
+usage: ${0##*/} [--help] {all,SUBMIT_OUTPUTS...}
+EOF
+}
+
+help() {
+    usage
+    cat <<EOF
+
+Parses batchload outputs, looks for failed files and prints the dataset
+that was supposed to be run. With 'all', uses dq2batch-*.sh.o*.
+EOF
+}
+
+for arg in $@
+do 
+    case $arg in 
+	--help ) help; exit 1 ;;
+	-h ) help; exit 1 ;;
+	all ) files+=dq2batch-*.sh.o* ;;
+	*) files+=${arg}" " ;;
+    esac
+done
+
+if [[ -z $files ]]
+    then 
+    # allow piping
+    if [[ ! -t 0 ]] 
+    then 
+	files=$(cat)
+    else
+	usage
+	exit 1
+    fi
+fi
+
+for f in $files
+do
+    failstr=$(tail $f | sed -nr 's/Number of failed.*: ([1-9])/\1/p')
+    if [[ -n $failstr ]]
+	then 
+	sed -nr 's/dq2-get (.*)/\1/p' ${f%.o*}
+    fi
+done | sort -u 
