@@ -39,8 +39,19 @@ fi
 
 for f in $files
 do
-    failstr=$(tail $f | sed -nr 's/Number of failed.*: ([1-9])/\1/p')
-    if [[ -n $failstr ]]
+    ftail=$(tail $f)
+
+    if [[ -n $(grep 'No download attempts made' <<< $ftail) ]]
+    then 
+	continue
+    fi
+    
+    failstr=$(sed -nr 's/Number of failed.*: ([0-9])/\1/p' <<< $ftail)
+    if [[ -z $failstr ]]
+	then 
+	echo WARNING: ${f%.o*} doesn\'t seem to have finished 1>&2 
+    fi
+    if [[ $failstr != 0 || -z $failstr ]]
 	then 
 	sed -nr 's/dq2-get (.*)/\1/p' ${f%.o*}
     fi
