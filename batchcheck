@@ -46,11 +46,12 @@ do
 	continue
     fi
     
-    failstr=$(sed -nr 's/Number of failed.*: ([0-9])/\1/p' <<< $ftail)
+    failstr=$(tail $f | sed -nr 's/Number of failed[^$]*: ([0-9])/\1/p')
     if [[ -z $failstr ]]
 	then 
-	echo WARNING: ${f%.o*} doesn\'t seem to have finished 1>&2 
+	echo "WARNING: ${f%.o*} doesn't seem to have finished" 1>&2 
     fi
+
     if [[ $failstr != 0 || -z $failstr ]]
 	then 
 	sed -nr 's/dq2-get (.*)/\1/p' ${f%.o*}
