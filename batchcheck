@@ -2,7 +2,7 @@
 
 usage() { 
     cat <<EOF
-usage: ${0##*/} [--help] {all,SUBMIT_OUTPUTS...}
+usage: ${0##*/} [--help, -v] {all,SUBMIT_OUTPUTS...}
 EOF
 }
 
@@ -12,14 +12,18 @@ help() {
 
 Parses batchload outputs, looks for failed files and prints the dataset
 that was supposed to be run. With 'all', uses dq2batch-*.sh.o*.
+
+With -v (or --verbose) flag, prints the whole summary to the error stream. 
 EOF
 }
 
+verbose=false
 for arg in $@
 do 
     case $arg in 
 	--help ) help; exit 1 ;;
 	-h ) help; exit 1 ;;
+	-v|--verbose ) verbose=true ;;
 	all ) files+=dq2batch-*.sh.o* ;;
 	*) files+=${arg}" " ;;
     esac
@@ -54,6 +58,19 @@ do
 
     if [[ $failstr != 0 || -z $failstr ]]
 	then 
-	sed -nr 's/dq2-get (.*)/\1/p' ${f%.o*}
+	dataset=$(sed -nr 's/dq2-get (.*)/\1/p' ${f%.o*}) 
+	if $verbose
+	    then 
+	    echo " ----- $dataset ----- " 1>&2
+	    echo "From: $f" 1>&2
+	    tail -n9 $f 1>&2
+	    echo 1>&2
+	fi
+	echo $dataset
+
+    fi
+    if $verbose 
+	then 
+	echo " ------------------ "
     fi
 done | sort -u 
