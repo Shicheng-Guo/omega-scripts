@@ -24,7 +24,31 @@ EOF
 }
 script_name=dq2batch.sh
 
-if [[ $# == 0 ]]
+test_run=false
+arg_array=($@)
+eaten=0
+for argn in $(seq 0 ${#arg_array[*]} )
+do 
+    arg=${arg_array[$(($argn + $eaten))]}
+    case $arg in 
+	--help )
+	    doc
+	    exit 1 ;;
+	--test )
+	    test_run=true ;;
+	-h) 
+	    doc 
+	    exit 1 ;;
+	-*)
+	    dq2_args+=${arg}" "${arg_array[$((
+	    eaten=$(( 1 + $eaten))
+	    echo $argn
+	    ;; 
+	*)
+	    files+=${arg}" " ;;
+    esac
+done
+if [[ -z $files ]]
     then 
     if [[ ! -t 0 ]]
     then 
@@ -34,20 +58,16 @@ if [[ $# == 0 ]]
 	echo "no containers, quitting..." 1>&2
 	exit 1
     fi
-else 
-    for arg in $@
-    do 
-	case $arg in 
-	    --help )
-		doc
-		exit 1 ;;
-	    -h) 
-		doc 
-		exit 1 ;;
-	    *)
-		files+=${arg}" " ;;
-	esac
-    done
+fi
+
+if $test_run
+    then 
+    echo $files
+    (
+	set -f 
+	echo $dq2_args
+    )
+    exit 1
 fi
 
 if ! command -v voms-proxy-init > /dev/null
