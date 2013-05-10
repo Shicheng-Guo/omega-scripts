@@ -2,7 +2,7 @@
 
 usage() {
     cat <<EOF
-usage: ${0##*/} [--help] [containers...]
+usage: ${0##*/} [--help, -*] [containers...]
 EOF
 }
 doc() { 
@@ -14,38 +14,49 @@ each container listed.
 
 The datasets will be downloaded to your working directory. 
 
+Any additional arguments beginning with a '-' will be passed to dq2-get, 
+along with the argument that follows. 
+
+For example: 
+
+>>> batchload -f '*.root*' \$(cat list_of_files.txt) 
+
+will submit one job for each dataset in 'list_of_files.txt', only 
+downloading root files.  
+
 NOTE: You should only run this in an empty directory where there is room 
 to download lots of data! The messy nature of submitting to PBS means your 
 working directory may become littered with shell scripts and batch output. 
 
 This is supposed to be stupidly easy to use. If you have questions (or 
 better yet, suggestions) ask Dan. 
+
 EOF
 }
 script_name=dq2batch.sh
 
 test_run=false
-arg_array=($@)
-eaten=0
-for argn in $(seq 0 ${#arg_array[*]} )
+while (( $# )) 
 do 
-    arg=${arg_array[$(($argn + $eaten))]}
-    case $arg in 
+    arg=$1
+    case $1 in 
 	--help )
 	    doc
 	    exit 1 ;;
 	--test )
-	    test_run=true ;;
+	    test_run=true 
+	    shift;;
 	-h) 
 	    doc 
 	    exit 1 ;;
 	-*)
-	    dq2_args+=${arg}" "${arg_array[$((
-	    eaten=$(( 1 + $eaten))
-	    echo $argn
-	    ;; 
+	    dq2_args+=$1" "
+	    shift
+	    dq2_args+=$1" "
+	    shift;; 
 	*)
-	    files+=${arg}" " ;;
+	    files+=$1" "
+	    shift;;
     esac
 done
 if [[ -z $files ]]
@@ -62,12 +73,13 @@ fi
 
 if $test_run
     then 
+    echo 'files: '
     echo $files
+    echo 'dq2-args: '
     (
 	set -f 
 	echo $dq2_args
     )
-    exit 1
 fi
 
 if ! command -v voms-proxy-init > /dev/null
@@ -75,7 +87,11 @@ then
     echo "voms-proxy-init not found (did you setup dq2?), quitting..." 1>&2
     exit 1
 fi 
-voms-proxy-init -voms atlas -out local_cert
+if ! $test_run
+then
+    voms-proxy-init -voms atlas -out local_cert
+fi
+
 if [[ $? != 0 ]] 
 then 
     echo 'voms failure, quitting...' 1>&2
@@ -99,9 +115,10 @@ echo 'submitted from: ' \$PBS_O_WORKDIR
 cd \$PBS_O_WORKDIR
 
 voms-proxy-init -voms atlas -noregen -q -cert local_cert
+(
+set -f
 EOF
 
-# cat ~/scripts/dqsetup.sh >| $script_name
 
 file_array=(${files})
 
@@ -109,8 +126,11 @@ for i in ${!file_array[*]}
 do 
     newname=${script_name%.sh}-${i}.sh
     cp $script_name $newname
-    echo "dq2-get ${file_array[$i]}" >> $newname
-    qsub -q hep -l walltime=01:00:00:00 $newname
-
+    echo "dq2-get ${dq2_args} ${file_array[$i]}" >> $newname
+    echo ")" >> $newname
+    if ! $test_run
+    then
+	qsub -q hep -l walltime=01:00:00:00 $newname
+    fi
 done
 
