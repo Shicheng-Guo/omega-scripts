@@ -4,10 +4,8 @@
 Parser for the outputs of 'batchload' script. 
 
 Can take a list of batch outputs as inputs, by default takes all dq3batch*
-in the current directory. 
-
-The output is intended to be piped into 'batchload', so that restarting
-unfinished downloads is simple: 
+in the current directory. The output is intended to be piped into 'batchload', 
+so that restarting unfinished downloads is simple: 
 
 >>> batchcheck | batchload
 """
@@ -18,7 +16,9 @@ from itertools import islice
 from sys import stderr, stdout
 
 def get_args(raw_args): 
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__, 
+        formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('batch_outputs', nargs='*')
     parser.add_argument('-v','--verbose', action='store_true')
     parser.add_argument('-c','--clean', action='store_true', 
