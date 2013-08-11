@@ -9,6 +9,9 @@ in the current directory. The output is intended to be piped into 'batchload',
 so that restarting unfinished downloads is simple: 
 
 >>> batchcheck | batchload
+
+With the --get-stale flag, returns a list of 'stale' outputs: there are more
+recent jobs downloading the same dataset. Normally stale outputs are ignored. 
 """
 
 import argparse, sys, os
@@ -22,8 +25,8 @@ def get_args(raw_args):
         formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('batch_outputs', nargs='*')
     parser.add_argument('-v','--verbose', action='store_true')
-    parser.add_argument('-c','--clean', action='store_true', 
-                        help='remove old batch files')
+    parser.add_argument('-s','--get-stale', action='store_true', 
+                        help='print names of older batch outputs')
     args = parser.parse_args(raw_args)
     return args
 
@@ -34,10 +37,11 @@ def run():
 
     all_batch_out = args.batch_outputs
     batch_out = get_most_recent_batch(all_batch_out)
-    if args.clean: 
+    if args.get_stale: 
         old_batch_files = set(all_batch_out) - set(batch_out)
         for old_file in old_batch_files: 
-            os.remove(old_file)
+            stdout.write(old_file + '\n')
+        return
 
     download_results = sorted(get_ds_and_result(x) for x in batch_out)
     for ds_name, results in download_results: 
