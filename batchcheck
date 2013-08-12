@@ -10,7 +10,7 @@ so that restarting unfinished downloads is simple:
 
 >>> batchcheck | batchload
 
-With the --get-stale flag, returns a list of 'stale' outputs: there are more
+With the --stale flag, returns a list of 'stale' outputs: there are more
 recent jobs downloading the same dataset. Normally stale outputs are ignored. 
 """
 
@@ -18,6 +18,7 @@ import argparse, sys, os
 from glob import glob
 from itertools import islice
 from sys import stderr, stdout
+from collections import Counter
 
 def get_args(raw_args): 
     parser = argparse.ArgumentParser(
@@ -25,8 +26,11 @@ def get_args(raw_args):
         formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('batch_outputs', nargs='*')
     parser.add_argument('-v','--verbose', action='store_true')
-    parser.add_argument('-s','--get-stale', action='store_true', 
-                        help='print names of older batch outputs')
+    out_group = parser.add_mutually_exclusive_group()
+    out_group.add_argument('-s','--stale', action='store_true', 
+                           help='print names of older batch outputs')
+    out_group.add_argument('-g','--sites', action='store_true', 
+                           help='print sites where jobs fail')
     args = parser.parse_args(raw_args)
     return args
 
@@ -37,11 +41,14 @@ def run():
 
     all_batch_out = args.batch_outputs
     batch_out = get_most_recent_batch(all_batch_out)
-    if args.get_stale: 
+    if args.stale: 
         old_batch_files = set(all_batch_out) - set(batch_out)
         for old_file in old_batch_files: 
             stdout.write(old_file + '\n')
         return
+    elif args.sites: 
+        print_site_stats(batch_out)
+        return 
 
     download_results = sorted(get_ds_and_result(x) for x in batch_out)
     for ds_name, results in download_results: 
@@ -120,6 +127,74 @@ def _get_download_summary(output_file):
     summary['tail'] = lines
     return summary
 
+# get failure stats here
+def print_site_stats(batch_out): 
+    site_counts = Counter()
+    site_counts_good = Counter()
+    for bfile in batch_out: 
+        with open(bfile) as output_file: 
+            file_site_counts, good_counts = _get_fail_sites(output_file)
+            if file_site_counts != 'unknown': 
+                site_counts += file_site_counts
+                site_counts_good += good_counts
+    total = site_counts + site_counts_good
+    rates = []
+    for site in total: 
+        n_pass = site_counts_good.get(site,0)
+        n_fail = site_counts.get(site,0)
+        n_total = total.get(site,0)
+        rates.append( (n_fail / float(n_total), site))
+
+    sitelen = max(len(site) for site in total)
+    nlen = max(len(str(v)) for v in total.values())
+    for rate, site in sorted(rates): 
+        stdout.write('{:{}}: {:{n}} of {:{n}} failed\n'.format(
+                site.strip(), sitelen, site_counts.get(site,0), 
+                total[site], n=nlen))
+
+_site_marker = ': Using site '
+_summary_marker = 'Download Summary:'
+def _get_fail_sites(output_file): 
+    """
+    goes through an output and tries to figure out where jobs were failing.
+    """
+    ds_site = {}
+    output_file.seek(0)
+    for line in islice(output_file, 100): 
+        if _site_marker in line: 
+            ds_name, site = line.split(_site_marker)
+            ds_site[ds_name] = site
+    
+    fail_files = None
+    output_file.seek(0)
+    for line in output_file: 
+        if _summary_marker in line: 
+            fail_files, success_files = _get_failed_files(output_file)
+    if not fail_files: 
+        return 'unknown', 'unknown'
+
+    site_fail_totals = Counter()
+    site_good_totals = Counter()
+    for ds, fails in fail_files.iteritems(): 
+        site = ds_site.get(ds,'unknown')
+        site_fail_totals[site] += fails
+    for ds, good in success_files.iteritems(): 
+        site = ds_site.get(ds,'unknown')
+        site_good_totals[site] += fails
+    return site_fail_totals, site_good_totals
+
+def _get_failed_files(output_file): 
+    dataset_fail_counts = Counter()
+    dataset_success_counts = Counter()
+    for line in output_file: 
+        if line.startswith('File:'): 
+            ftag, fname, what = line.split()
+            ds = fname.split('/')[0]
+            if what == 'FAILED':
+                dataset_fail_counts[ds] += 1
+            elif what == 'SUCCESSFUL': 
+                dataset_success_counts[ds] += 1
+    return dataset_fail_counts, dataset_success_counts
 
 if __name__ == '__main__': 
     run()
