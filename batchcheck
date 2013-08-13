@@ -160,7 +160,7 @@ def _get_fail_sites(output_file):
     """
     ds_site = {}
     output_file.seek(0)
-    for line in islice(output_file, 100): 
+    for line in output_file: 
         if _site_marker in line: 
             ds_name, site = line.split(_site_marker)
             ds_site[ds_name] = site
@@ -170,7 +170,7 @@ def _get_fail_sites(output_file):
     for line in output_file: 
         if _summary_marker in line: 
             fail_files, success_files = _get_failed_files(output_file)
-    if not fail_files: 
+    if fail_files is None: 
         return 'unknown', 'unknown'
 
     site_fail_totals = Counter()
@@ -180,7 +180,7 @@ def _get_fail_sites(output_file):
         site_fail_totals[site] += fails
     for ds, good in success_files.iteritems(): 
         site = ds_site.get(ds,'unknown')
-        site_good_totals[site] += fails
+        site_good_totals[site] += good
     return site_fail_totals, site_good_totals
 
 def _get_failed_files(output_file): 
