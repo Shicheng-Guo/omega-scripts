@@ -31,6 +31,8 @@ def get_args(raw_args):
                            help='print names of older batch outputs')
     out_group.add_argument('-g','--sites', action='store_true', 
                            help='print sites where jobs fail')
+    out_group.add_argument('-m','--missing', action='store_true', 
+                           help="print datasets that can't be found")
     args = parser.parse_args(raw_args)
     return args
 
@@ -48,6 +50,9 @@ def run():
         return
     elif args.sites: 
         print_site_stats(batch_out)
+        return 
+    elif args.missing: 
+        print_missing(batch_out)
         return 
 
     download_results = sorted(get_ds_and_result(x) for x in batch_out)
@@ -151,6 +156,24 @@ def print_site_stats(batch_out):
         stdout.write('{:{}}: {:{n}} of {:{n}} failed\n'.format(
                 site.strip(), sitelen, site_counts.get(site,0), 
                 total[site], n=nlen))
+
+# finding missing datasets 
+_missing_string = 'No non-blacklisted sites available'
+def print_missing(batch_out): 
+    for bfile in batch_out: 
+        with open(bfile) as output_file: 
+            output_file.seek(0,2) # go to end
+            end_pos = output_file.tell()
+
+            # last 2k or so bytes are all we need
+            aprox_tail_position = max(end_pos - 4000, 0) 
+            output_file.seek(aprox_tail_position)
+            lines = output_file.readlines()[-10:]
+            for line in lines: 
+                if _missing_string in line: 
+                    dataset_name = _get_dataset(output_file)
+                    stdout.write(dataset_name + '\n')
+
 
 _site_marker = ': Using site '
 _summary_marker = 'Download Summary:'
