@@ -210,7 +210,11 @@ def _get_fail_sites(output_file):
     output_file.seek(0)
     for line in output_file: 
         if _site_marker in line: 
-            ds_name, site = line.split(_site_marker)
+            try: 
+                ds_name, site = line.split(_site_marker)
+            except ValueError: 
+                stderr.write("ERROR: can't parse {}\n".format(line))
+                continue
             ds_site[ds_name] = site
     
     fail_files = None
