@@ -26,6 +26,7 @@ def get_args(raw_args):
         formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('batch_outputs', nargs='*')
     parser.add_argument('-v','--verbose', action='store_true')
+    parser.add_argument('-l','--dataset-list', type=_get_ds_list_from_file)
     out_group = parser.add_mutually_exclusive_group()
     out_group.add_argument('-s','--stale', action='store_true', 
                            help='print names of older batch outputs')
@@ -54,7 +55,14 @@ def run():
     elif args.missing: 
         print_missing(batch_out)
         return 
+    print_incomplete(batch_out, args.verbose, args.dataset_list)
 
+def _get_ds_list_from_file(in_file): 
+    with open(in_file) as ds_list: 
+        datasets = [ds.strip() for ds in ds_list]
+        return datasets
+
+def print_incomplete(batch_out, verbose, expected_datasets=None): 
     download_results = sorted(get_ds_and_result(x) for x in batch_out)
     for ds_name, results in download_results: 
         try: 
@@ -62,14 +70,19 @@ def run():
         except KeyError: 
             stderr.write('WARNING: {} missing summary\n'.format(
                     results['script']))
-            if args.verbose: 
+            if verbose: 
                 _dump_tail(results)
             n_failed = float('inf')
         if n_failed != 0: 
             stdout.write(ds_name + '\n')
-            if args.verbose: 
+            if verbose: 
                 stderr.write('-- {} --\n'.format(ds_name))
                 _dump_tail(results)
+    if expected_datasets: 
+        found_datasets = [name for name, results in download_results] 
+        missing = set(expected_datasets) - set(found_datasets)
+        for ds in missing: 
+            stdout.write(ds + '\n')
     
 def _dump_tail(job_summary_dict, stream=stderr): 
     stream.write('tail of: {}\n'.format(job_summary_dict['script']))
@@ -98,17 +111,24 @@ def get_most_recent_batch(batch_files):
     script_name = {}
     for f in batch_files: 
         batch_number = int(f.split('o')[-1])
-        with open(f) as batch_out: 
-            try: 
+        try: 
+            with open(f) as batch_out: 
                 ds_name = _get_dataset(batch_out)
-            except IOError as err: 
-                raise IOError(str(err) + ' in ' + f)
+        except EmptyFileError: 
+            stderr.write('{} is empty, removing\n'.format(f))
+            os.remove(f)
+            continue
+        except IOError as err: 
+            raise IOError(str(err) + ' in ' + f)
         ds_max_so_far = most_recent_batch_num.get(ds_name,0)
         if ds_max_so_far < batch_number: 
             most_recent_batch_num[ds_name] = batch_number
             script_name[ds_name] = f
     return script_name.values()
 
+class EmptyFileError(IOError): 
+    def __init__(self, what): 
+        super(EmptyFileError,self).__init__(what)
 
 def _get_dataset(output_file): 
     dataset_name = ''
@@ -117,6 +137,8 @@ def _get_dataset(output_file):
         if line.startswith(_ds_start_string): 
             ds_name = line.split()[-1].strip()
             return ds_name
+    if output_file.tell() == 0: 
+        raise EmptyFileError("nothing in file")
     raise IOError('no dataset name found')
 
 def _get_download_summary(output_file): 
