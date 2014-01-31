@@ -1,0 +1,78 @@
+#!/usr/bin/env python2.7
+# -*- mode: python -*-
+"""
+Some kind of a script to calculate disk usage. 
+"""
+
+import os, pwd, sys, time, argparse
+
+def run(): 
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        'root_dir', help='search under this directory', default='.', 
+        nargs='?')
+    parser.add_argument(
+        '-a','--age-cut-days', type=_convert_to_seconds, 
+        help="only count files that haven't been touched in this many days")
+    parser.add_argument(
+        '-o', '--output-file', type=argparse.FileType('w'), 
+        default=sys.stdout, help='defaults to standard output')
+    args = parser.parse_args(sys.argv[1:])
+    
+    usage, errors = get_usage_and_errors(args.root_dir, args.age_cut_days)
+    print_usage(usage, args.output_file)
+
+    if errors: 
+        args.output_file.write('\n****** read errors ******\n')
+        for user, errors in user_errors.iteritems(): 
+            args.output_file.write('{:>10}: {}\n'.format(user, errors))
+
+def _convert_to_seconds(age_in_days): 
+    return age_in_days * 86400
+
+def get_usage_and_errors(root_dir, age_cut_seconds=None):
+    users_usage = {}
+    user_errors = {}
+    
+    now = time.time()
+    
+    for root, dirs, files in os.walk(root_dir): 
+        for f in files: 
+            fpath = os.path.join(root, f)
+            if os.path.islink(fpath): 
+                continue
+            try: 
+                stat = os.stat(fpath)
+                if age_cut_seconds: 
+                    age = (now - stat.st_atime)
+                    if age < age_cut_seconds: 
+                        continue
+    
+                user = pwd.getpwuid(stat.st_uid).pw_name
+                fsize = os.path.getsize(fpath)
+            except OSError: 
+                if not user in user_errors: 
+                    user_errors[user] = 1
+                else: 
+                    user_errors[user] += 1
+    
+            if not user in users_usage: 
+                users_usage[user] = fsize
+            else: 
+                users_usage[user] += fsize 
+    return users_usage, user_errors
+
+def print_usage(usage, output_file): 
+    out_string = '{:>10}: {:.3f} GB\n'
+    sortusage = sorted((nby, user) for user, nby in usage.iteritems())
+    total = 0
+    for n_bytes, user in sortusage: 
+        total += n_bytes
+        out = out_string.format(user, n_bytes / 1e9)
+        output_file.write(out)
+    tot_string = out_string.format('total', total / 1e9)
+    output_file.write(tot_string)
+
+if __name__ == '__main__': 
+    run()
+
