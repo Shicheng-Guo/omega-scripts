@@ -99,7 +99,10 @@ def get_most_recent_batch(batch_files):
     for f in batch_files: 
         batch_number = int(f.split('o')[-1])
         with open(f) as batch_out: 
-            ds_name = _get_dataset(batch_out)
+            try: 
+                ds_name = _get_dataset(batch_out)
+            except IOError as err: 
+                raise IOError(str(err) + ' in ' + f)
         ds_max_so_far = most_recent_batch_num.get(ds_name,0)
         if ds_max_so_far < batch_number: 
             most_recent_batch_num[ds_name] = batch_number
