@@ -10,8 +10,8 @@ from collections import Counter, defaultdict
 def run(): 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        'root_dir', help='search under this directory', default='.', 
-        nargs='?')
+        'root_dir', help='search under this directory or load this .json', 
+        default='.', nargs='?')
     parser.add_argument(
         '-a','--age-cut-days', type=float, 
         help="only count files that haven't been touched in this many days")
@@ -26,7 +26,11 @@ def run():
     if args.age_cut_days: 
         max_atime = time.time() - args.age_cut_days * 86400
     
-    the_dir = Directory(args.root_dir)
+    if os.path.isfile(args.root_dir) and args.root_dir.endswith('.json'): 
+        with open(args.root_dir) as json_input: 
+            the_dir = Directory(dic=json.load(json_input))
+    else: 
+        the_dir = Directory(args.root_dir)
     print_usage(the_dir.size(max_atime), args.output_file)
 
     has_err = False
