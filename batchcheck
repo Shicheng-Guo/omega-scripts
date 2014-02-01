@@ -119,6 +119,10 @@ def get_most_recent_batch(batch_files):
             os.remove(f)
             continue
         except IOError as err: 
+            if _has_voms_error(f): 
+                stderr.write('{} has voms error, removing\n'.format(f))
+                os.remove(f)
+                continue
             raise IOError(str(err) + ' in ' + f)
         ds_max_so_far = most_recent_batch_num.get(ds_name,0)
         if ds_max_so_far < batch_number: 
@@ -153,6 +157,11 @@ def _get_download_summary(output_file):
     for line in lines: 
         if line.startswith(_ds_failed_string): 
             summary['failed'] = int(line.split()[-1])
+
+    if not 'failed' in summary: 
+        for line in lines: 
+            if "No files in dataset or no files left" in line: 
+                summary['failed'] = 0
 
     summary['tail'] = lines
     return summary
@@ -247,6 +256,13 @@ def _get_failed_files(output_file):
             elif what == 'SUCCESSFUL': 
                 dataset_success_counts[ds] += 1
     return dataset_fail_counts, dataset_success_counts
+
+def _has_voms_error(file_name): 
+    with open(file_name) as batch_out: 
+        for line in batch_out: 
+            if "Missing voms proxy. Create one with 'voms-proxy-init" in line: 
+                return True
+    return False
 
 if __name__ == '__main__': 
     run()
