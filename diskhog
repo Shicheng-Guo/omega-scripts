@@ -4,7 +4,8 @@
 Some kind of a script to calculate disk usage. 
 """
 
-import os, pwd, sys, time, argparse
+import os, pwd, sys, time, argparse, json
+from collections import Counter, defaultdict
 
 def run(): 
     parser = argparse.ArgumentParser(description=__doc__)
@@ -17,22 +18,114 @@ def run():
     parser.add_argument(
         '-o', '--output-file', type=argparse.FileType('w'), 
         default=sys.stdout, help='defaults to standard output')
+    parser.add_argument(
+        '-j', '--json-output', help='store all file info in a json file')
     args = parser.parse_args(sys.argv[1:])
     
-    usage, errors = get_usage_and_errors(args.root_dir, args.age_cut_days)
-    print_usage(usage, args.output_file)
+    the_dir = Directory(args.root_dir)
+    print_usage(the_dir.size(), args.output_file)
 
-    if errors: 
-        args.output_file.write('\n****** read errors ******\n')
-        for user, errors in user_errors.iteritems(): 
-            args.output_file.write('{:>10}: {}\n'.format(user, errors))
+    has_err = False
+    for err_file, err in the_dir.error_iter(): 
+        if not has_err: 
+            args.output_file.write('\n****** read errors ******\n')
+            has_err = True
+        args.output_file.write('{}: {}\n'.format(err_file, err))
+
+    if args.json_output: 
+        with open(args.json_output,'w') as json_out: 
+            json_out.write(json.dumps(the_dir.dict()))
+
+class File(object): 
+    def __init__(self, path=None, dic=None): 
+        if path is not None: 
+            self._from_path(path)
+        elif dic is not None: 
+            self._from_dict(dic)
+
+    def _from_path(self, path): 
+        stat = os.stat(path)
+        self.atime = stat.st_atime
+        self.user = pwd.getpwuid(stat.st_uid).pw_name
+        self.size = os.path.getsize(path)
+    def _from_dict(self, dic): 
+        self.atime = dic['atime']
+        self.user = dic['user']
+        self.size = dic['size']
+    def dict(self): 
+        return dict(atime=self.atime, user=self.user, size=self.size)
+
+class Directory(object): 
+    # save schema
+    _err = "errors"
+    _sdir = "subdirs"
+    _sfile = "subfiles"
+    def __init__(self, path=None, dic=None): 
+        # self.path = path
+        self.subdirs = {}
+        self.subfiles = {}
+        self.errors = {}
+        if path is not None: 
+            self._from_path(path)
+        elif dic is not None: 
+            self._from_dict(dic)
+
+    def _from_path(self, path): 
+        contents = os.listdir(path)
+        for thing in contents: 
+            thing_path = os.path.join(path,thing)
+            try: 
+                if os.path.islink(thing_path): 
+                    continue
+                elif os.path.isdir(thing_path): 
+                    self.subdirs[thing] = Directory(thing_path)
+                elif os.path.isfile(thing_path): 
+                    self.subfiles[thing] = File(thing_path)
+            except OSError as err: 
+                self.errors[thing] = str(err)
+
+    def _from_dict(self, dic): 
+        self.errors = dic.get(self._err,{})
+        for fn, fi in dic.get(self._sfile, {}).iteritems(): 
+            self.subfiles[fn] = File(dic=fi)
+        for dn, di in dic.get(self._sdir, {}).iteritems(): 
+            self.subdirs[dn] = Directory(dic=di)
+
+    def size(self, max_atime=None): 
+        size = Counter()
+        for subfile in self.subfiles.itervalues(): 
+            if max_atime is None or subfile.atime < max_atime: 
+                size[subfile.user] += subfile.size
+        for subdir in self.subdirs.itervalues(): 
+            size += subdir.size(max_atime)
+        return size
+
+    def dict(self): 
+        dictionary = defaultdict(dict)
+        for subname, subdir in self.subdirs.iteritems(): 
+            dictionary[self._sdir][subname] = subdir.dict()
+        for subname, subfile in self.subfiles.iteritems(): 
+            dictionary[self._sfile][subname] = subfile.dict()
+        for errname, error in self.errors.iteritems(): 
+            dictionary[self._err][errname] = error
+        return dict(dictionary)
+
+    def error_iter(self): 
+        for err_file, error in self.errors.iteritems(): 
+            yield err_file, error
+        for dname, subdir in self.subdirs.iteritems(): 
+            for err_file, error in subdir.error_iter(): 
+                yield os.path.join(dname,err_file), error
 
 def _convert_to_seconds(age_in_days): 
     return age_in_days * 86400
 
 def get_usage_and_errors(root_dir, age_cut_seconds=None):
-    users_usage = {}
-    user_errors = {}
+    """
+    This was the old way to tally usage. Now we're more fancy. 
+    """
+    users_usage = Counter()
+    errors = Counter()
     
     now = time.time()
     
@@ -49,18 +142,11 @@ def get_usage_and_errors(root_dir, age_cut_seconds=None):
                         continue
     
                 user = pwd.getpwuid(stat.st_uid).pw_name
-                fsize = os.path.getsize(fpath)
+                users_usage[user] += os.path.getsize(fpath)
             except OSError: 
-                if not user in user_errors: 
-                    user_errors[user] = 1
-                else: 
-                    user_errors[user] += 1
-    
-            if not user in users_usage: 
-                users_usage[user] = fsize
-            else: 
-                users_usage[user] += fsize 
-    return users_usage, user_errors
+                errors[root] += 1
+
+    return users_usage, errors
 
 def print_usage(usage, output_file): 
     out_string = '{:>10}: {:.3f} GB\n'
