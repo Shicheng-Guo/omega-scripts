@@ -13,7 +13,7 @@ def run():
         'root_dir', help='search under this directory', default='.', 
         nargs='?')
     parser.add_argument(
-        '-a','--age-cut-days', type=_convert_to_seconds, 
+        '-a','--age-cut-days', type=float, 
         help="only count files that haven't been touched in this many days")
     parser.add_argument(
         '-o', '--output-file', type=argparse.FileType('w'), 
@@ -21,9 +21,13 @@ def run():
     parser.add_argument(
         '-j', '--json-output', help='store all file info in a json file')
     args = parser.parse_args(sys.argv[1:])
+
+    max_atime = None
+    if args.age_cut_days: 
+        max_atime = time.time() - args.age_cut_days * 86400
     
     the_dir = Directory(args.root_dir)
-    print_usage(the_dir.size(), args.output_file)
+    print_usage(the_dir.size(max_atime), args.output_file)
 
     has_err = False
     for err_file, err in the_dir.error_iter(): 
@@ -35,6 +39,7 @@ def run():
     if args.json_output: 
         with open(args.json_output,'w') as json_out: 
             json_out.write(json.dumps(the_dir.dict()))
+
 
 class File(object): 
     def __init__(self, path=None, dic=None): 
@@ -54,6 +59,7 @@ class File(object):
         self.size = dic['size']
     def dict(self): 
         return dict(atime=self.atime, user=self.user, size=self.size)
+
 
 class Directory(object): 
     # save schema
@@ -117,8 +123,7 @@ class Directory(object):
             for err_file, error in subdir.error_iter(): 
                 yield os.path.join(dname,err_file), error
 
-def _convert_to_seconds(age_in_days): 
-    return age_in_days * 86400
+
 
 def get_usage_and_errors(root_dir, age_cut_seconds=None):
     """
