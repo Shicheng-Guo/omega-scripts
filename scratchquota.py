@@ -7,7 +7,7 @@ This is to calculate disk use
 from subprocess import Popen, PIPE
 import re
 from collections import Counter
-import argparse
+import argparse, os
 
 qfile='/share/config/quotas/lustre-scratch-user-quotas.txt'
 groupfile='/share/config/quotas/lustre-scratch-group-quotas.txt'
@@ -48,16 +48,16 @@ def redbold(st):
 def green(st): 
     return '\033[1;32m' + st + '\033[m'
 
-def prog_bar(use, total, width=80): 
-    used_units = int((float(use) / total) * 80)
+def prog_bar(use, total, width=70): 
+    used_units = int((float(use) / total) * width)
     bad_units = min(used_units, width)
     bads = red('='*bad_units)
     goods = green('-'*(width - bad_units))
     fill_arr = '[' + bads + goods + ']'
-    if used_units > width: 
+    if use > total: 
         verybads = used_units - width
         fill_arr += red('#'*verybads)
-        fill_arr += ' <-- {} GB over!'.format(use - total)
+        fill_arr += ' <-- {:.2f} TB over!'.format(float(use - total) / 1e3)
     print fill_arr
     
 
