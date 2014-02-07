@@ -7,7 +7,7 @@ This is to calculate disk use
 from subprocess import Popen, PIPE
 import re
 from collections import Counter
-import argparse, os
+import argparse, os, time
 
 qfile='/share/config/quotas/lustre-scratch-user-quotas.txt'
 groupfile='/share/config/quotas/lustre-scratch-group-quotas.txt'
@@ -21,6 +21,10 @@ def get_group_total(group_file):
             group, used, limit = fields[1:4]
             if group == 'hep': 
                 return int(used), int(limit)
+
+def get_mod_time(file_name): 
+    mod_time = os.stat(file_name).st_mtime
+    return time.ctime(mod_time)
 
 def name_user(user): 
     stout, sterr = Popen(['finger',user],stdout=PIPE).communicate()
@@ -64,6 +68,9 @@ def prog_bar(use, total, width=70):
 def get_by_user(): 
     hep_total = 0
     group_totals = Counter()
+
+    print 'reading {}\n(written {})'.format(qfile, get_mod_time(qfile))
+    print ''
     
     with open(qfile) as quotas: 
         use_by_user = get_user_use(quotas)
@@ -96,9 +103,9 @@ def get_frac_total(verbose=False):
     other_total, limit = get_group_total(groupfile)
     if verbose: 
         print ''
-        print 'see {} for more'.format(qfile)
-        print 'cross check: using {} of {} GB (from {})'.format(
-            other_total, limit, groupfile)
+        print 'check from {}'.format(groupfile)
+        print 'using {} of {} GB (as of {})'.format(
+            other_total, limit, get_mod_time(groupfile))
     else: 
         prog_bar(other_total, limit)
 
