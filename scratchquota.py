@@ -1,8 +1,10 @@
 #!/usr/bin/env python2.7
 """
-This is to calculate disk use
+This is to calculate disk use. With no options, show a status bar. 
+Bar is green for < 85% use, blue above 85% use, red at 95%. 
 """
-
+_blue_thr = 0.85
+_red_thr = 0.95
 
 from subprocess import Popen, PIPE
 import re
@@ -61,9 +63,9 @@ def black(st):
 def prog_bar(use, total, width=80): 
     frac = float(use) / total
     color = green
-    if frac > 0.95: 
+    if frac > _red_thr: 
         color = red
-    elif frac > 0.85: 
+    elif frac > _blue_thr: 
         color = blue
     
     used_units = int(frac * width)
@@ -83,6 +85,9 @@ def prog_bar(use, total, width=80):
     
 
 def get_by_user(qfile=_qfile): 
+    """
+    Get the use by user and group. 
+    """
     if not os.path.isfile(qfile): 
         raise OSError("can't find " + qfile)
     hep_total = 0
@@ -129,13 +134,13 @@ def get_frac_total(txtfile=_groupfile, verbose=False):
             other_total, limit, get_mod_time(txtfile))
     else: 
         prog_bar(other_total, limit)
-        for val in xrange(100): 
-            prog_bar(val, 100)
 
 if __name__ == '__main__': 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('-v', '--verbose', action='store_true')
+    parser.add_argument(
+        '-b', '--breakdown', action='store_true', 
+        help=get_by_user.__doc__)
     args = parser.parse_args()
-    if args.verbose: 
+    if args.breakdown: 
         get_by_user()
-    get_frac_total(verbose=args.verbose)
+    get_frac_total(verbose=args.breakdown)
