@@ -9,8 +9,8 @@ import re
 from collections import Counter
 import argparse, os, time
 
-qfile='/share/config/quotas/lustre-scratch-user-quotas.txt'
-groupfile='/share/config/quotas/lustre-scratch-group-quotas.txt'
+_qfile='/share/config/quotas/lustre-scratch-user-quotas.txt'
+_groupfile='/share/config/quotas/lustre-scratch-group-quotas.txt'
 hep_groups = {'golling','tipton','demers','baker','baltay','hepadmin', 
               'astrousr'}
 
@@ -47,25 +47,44 @@ def get_user_use(quotas):
 
 def red(st): 
     return '\033[31m' + st + '\033[m'
+def yellow(st): 
+    return '\033[1;33m' + st + '\033[m'
 def redbold(st): 
     return '\033[1;31m' + st + '\033[m'
 def green(st): 
     return '\033[1;32m' + st + '\033[m'
+def blue(st): 
+    return '\033[1;34m' + st + '\033[m'
+def black(st): 
+    return st
 
-def prog_bar(use, total, width=70): 
-    used_units = int((float(use) / total) * width)
+def prog_bar(use, total, width=80): 
+    frac = float(use) / total
+    color = green
+    if frac > 0.95: 
+        color = red
+    elif frac > 0.85: 
+        color = blue
+    
+    used_units = int(frac * width)
     bad_units = min(used_units, width)
-    bads = red('='*bad_units)
-    goods = green('-'*(width - bad_units))
-    fill_arr = '[' + bads + goods + ']'
-    if use > total: 
-        verybads = used_units - width
-        fill_arr += red('#'*verybads)
-        fill_arr += ' <-- {:.2f} TB over!'.format(float(use - total) / 1e3)
+    verybad_units = used_units - bad_units
+    bads = color('='*bad_units)
+    goods = green(' '*(width - bad_units))
+    verybads = ''
+    if verybad_units: 
+        verybads = redbold('#'*verybad_units)
+    fill_arr = '[' + bads + goods + verybads + ']'
+
+    use_gb = float(use) / 1e3
+    tot_gb = float(total) / 1e3
+    fill_arr += ' {:.0f} of {:.0f} TB'.format(use_gb, tot_gb)
     print fill_arr
     
 
-def get_by_user(): 
+def get_by_user(qfile=_qfile): 
+    if not os.path.isfile(qfile): 
+        raise OSError("can't find " + qfile)
     hep_total = 0
     group_totals = Counter()
 
@@ -99,15 +118,19 @@ def get_by_user():
     print pr_fmt.format(*empty)
     print pr_fmt.format('total', 'all', hep_total, '')
 
-def get_frac_total(verbose=False): 
-    other_total, limit = get_group_total(groupfile)
+def get_frac_total(txtfile=_groupfile, verbose=False): 
+    if not os.path.isfile(txtfile): 
+        raise OSError("can't find " + txtfile)
+    other_total, limit = get_group_total(txtfile)
     if verbose: 
         print ''
-        print 'check from {}'.format(groupfile)
+        print 'check from {}'.format(txtfile)
         print 'using {} of {} GB (as of {})'.format(
-            other_total, limit, get_mod_time(groupfile))
+            other_total, limit, get_mod_time(txtfile))
     else: 
         prog_bar(other_total, limit)
+        for val in xrange(100): 
+            prog_bar(val, 100)
 
 if __name__ == '__main__': 
     parser = argparse.ArgumentParser(description=__doc__)
@@ -115,4 +138,4 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.verbose: 
         get_by_user()
-    get_frac_total(args.verbose)
+    get_frac_total(verbose=args.verbose)
