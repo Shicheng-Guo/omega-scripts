@@ -1,15 +1,15 @@
 #!/usr/bin/env python2.7
 """
 This is to calculate disk use. With no options, show a status bar. 
-Bar is green for < 85% use, blue above 85% use, red at 95%. 
+Bar is green for < 95% use, blue above 95% use, red at 98%. 
 """
-_blue_thr = 0.85
-_red_thr = 0.95
+_blue_thr = 0.95
+_red_thr = 0.98
 
 from subprocess import Popen, PIPE
 import re
 from collections import Counter
-import argparse, os, time
+import argparse, os, time, math
 
 _qfile='/share/config/quotas/lustre-scratch-user-quotas.txt'
 _groupfile='/share/config/quotas/lustre-scratch-group-quotas.txt'
@@ -60,15 +60,16 @@ def blue(st):
 def black(st): 
     return st
 
-def prog_bar(use, total, width=80): 
+def prog_bar(use, total, width=80, crop=0.75): 
     frac = float(use) / total
+    fracbar = max( (frac - crop) / (1.0 - crop), 0.0)
     color = green
     if frac > _red_thr: 
-        color = red
+        color = redbold
     elif frac > _blue_thr: 
         color = blue
     
-    used_units = int(frac * width)
+    used_units = int(math.ceil(fracbar * width))
     bad_units = min(used_units, width)
     verybad_units = used_units - bad_units
     bads = color('='*bad_units)
@@ -76,13 +77,18 @@ def prog_bar(use, total, width=80):
     verybads = ''
     if verybad_units: 
         verybads = redbold('#'*verybad_units)
-    fill_arr = '[' + bads + goods + verybads + ']'
 
     use_gb = float(use) / 1e3
     tot_gb = float(total) / 1e3
+        
+    fill_arr =  '|' + bads + goods + verybads + ']'
     fill_arr += ' {:.0f} of {:.0f} TB'.format(use_gb, tot_gb)
+    print '{:<{b}.0f} TB {:>{w}.0f} TB'.format(
+        tot_gb * crop, tot_gb, w=width-3, b=2)
     print fill_arr
     
+def _per_user_fmt(total, users): 
+    return "{:>6.0f} per user".format(float(total)/users)
 
 def get_by_user(qfile=_qfile): 
     """
@@ -92,6 +98,7 @@ def get_by_user(qfile=_qfile):
         raise OSError("can't find " + qfile)
     hep_total = 0
     group_totals = Counter()
+    group_people = Counter()
 
     print 'reading {}\n(written {})'.format(qfile, get_mod_time(qfile))
     print ''
@@ -108,6 +115,7 @@ def get_by_user(qfile=_qfile):
         if use == 0: continue
         hep_total += use
         group_totals[group] += use
+        group_people[group] += 1
     def use_str(use): 
         return '{:>5} ({:>3.0%})'.format(use, float(use) / hep_total)
     for use, group, user in use_by_user:
@@ -119,9 +127,11 @@ def get_by_user(qfile=_qfile):
 
     grp_sort = sorted(group_totals.items(), key=lambda x: x[1], reverse=True)
     for group, total in grp_sort: 
-        print pr_fmt.format('total', group, use_str(total), '')
+        per_usr_str = _per_user_fmt(total, group_people[group])
+        print pr_fmt.format('total', group, use_str(total), per_usr_str)
     print pr_fmt.format(*empty)
-    print pr_fmt.format('total', 'all', hep_total, '')
+    print pr_fmt.format('total', 'all', hep_total, _per_user_fmt(
+            hep_total, sum(group_people.values())))
 
 def get_frac_total(txtfile=_groupfile, verbose=False): 
     if not os.path.isfile(txtfile): 
@@ -133,7 +143,10 @@ def get_frac_total(txtfile=_groupfile, verbose=False):
         print 'using {} of {} GB (as of {})'.format(
             other_total, limit, get_mod_time(txtfile))
     else: 
-        prog_bar(other_total, limit)
+        prog_bar(other_total, limit, crop=0.8)
+        # prog_bar(100000, limit, crop=0.8)
+        # for x in xrange(0, 120000, 1000): 
+        #     prog_bar(x, 100000)
 
 if __name__ == '__main__': 
     parser = argparse.ArgumentParser(description=__doc__)
