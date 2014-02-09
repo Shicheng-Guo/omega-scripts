@@ -143,7 +143,7 @@ def get_frac_total(txtfile=_groupfile, verbose=False):
         print 'using {} of {} GB (as of {})'.format(
             other_total, limit, get_mod_time(txtfile))
     else: 
-        prog_bar(other_total, limit, crop=0.8)
+        prog_bar(other_total, limit, crop=110.0/120.0)
         # prog_bar(100000, limit, crop=0.8)
         # for x in xrange(0, 120000, 1000): 
         #     prog_bar(x, 100000)
