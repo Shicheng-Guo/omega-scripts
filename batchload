@@ -101,7 +101,7 @@ fi
 cat >| $script_name <<EOF
 shopt -s expand_aliases
 
-export ATLAS_LOCAL_ROOT_BASE=/home/hep/share/app/atlas/ATLASLocalRootBase
+export ATLAS_LOCAL_ROOT_BASE=/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase
 alias setupATLAS='source \${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh'
 setupATLAS --quiet
 
@@ -128,9 +128,11 @@ do
     cp $script_name $newname
     echo "dq2-get ${dq2_args} ${file_array[$i]}" >> $newname
     echo ")" >> $newname
+
+    resources="-l walltime=01:00:00:00,naccesspolicy=shared"
     if ! $test_run
     then
-	qsub -q hep -l walltime=01:00:00:00 $newname
+	qsub -p -500 -q hep $resources $newname
     fi
 done
 

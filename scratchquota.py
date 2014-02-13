@@ -146,9 +146,6 @@ def get_frac_total(txtfile=_groupfile, verbose=False):
         print ''
         prog_bar(other_total, limit, crop=100.0/120.0)
         print ''
-        # prog_bar(100000, limit, crop=0.8)
-        # for x in xrange(0, 120000, 1000): 
-        #     prog_bar(x, 100000)
 
 if __name__ == '__main__': 
     parser = argparse.ArgumentParser(description=__doc__)
