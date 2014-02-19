@@ -19,6 +19,7 @@ from glob import glob
 from itertools import islice
 from sys import stderr, stdout
 from collections import Counter
+from os.path import basename
 
 def get_args(raw_args): 
     parser = argparse.ArgumentParser(
@@ -110,7 +111,7 @@ def get_most_recent_batch(batch_files):
     most_recent_batch_num = {}
     script_name = {}
     for f in batch_files: 
-        batch_number = int(f.split('o')[-1])
+        batch_number = int(basename(f).split('-')[1])
         try: 
             with open(f) as batch_out: 
                 ds_name = _get_dataset(batch_out)
