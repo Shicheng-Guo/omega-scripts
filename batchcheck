@@ -40,7 +40,7 @@ def get_args(raw_args):
 def run(): 
     args = get_args(sys.argv[1:])
     if not args.batch_outputs: 
-        args.batch_outputs = glob('dq2batch-*.sh.o*')
+        args.batch_outputs = glob('batch-output/job-*.log*')
 
     all_batch_out = args.batch_outputs
     batch_out = get_most_recent_batch(all_batch_out)
