@@ -14,7 +14,7 @@ With the --stale flag, returns a list of 'stale' outputs: there are more
 recent jobs downloading the same dataset. Normally stale outputs are ignored. 
 """
 
-import argparse, sys, os
+import argparse, sys, os, re
 from glob import glob
 from itertools import islice
 from sys import stderr, stdout
@@ -110,8 +110,11 @@ def get_most_recent_batch(batch_files):
     """
     most_recent_batch_num = {}
     script_name = {}
+    batch_re = re.compile('job-([0-9]+)\.log-[0-9]+')
+    def batch_num(file_name): 
+        return int(batch_re.search(basename(file_name)).group(1))
     for f in batch_files: 
-        batch_number = int(basename(f).split('-')[1])
+        batch_number = batch_num(f)
         try: 
             with open(f) as batch_out: 
                 ds_name = _get_dataset(batch_out)
