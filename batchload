@@ -39,7 +39,7 @@ batch_out_dir=batch-output
 test_run=false
 
 # number of jobs to ask for simultaneously
-n_simultaneous=20
+n_simultaneous=50
 while (( $# )) 
 do 
     arg=$1
