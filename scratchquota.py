@@ -13,8 +13,9 @@ import argparse, os, time, math
 
 _qfile='/share/config/quotas/lustre-scratch-user-quotas.txt'
 _groupfile='/share/config/quotas/lustre-scratch-group-quotas.txt'
-hep_groups = {'golling','tipton','demers','baker','baltay','hepadmin', 
-              'astrousr'}
+hep_groups = {'golling':'atlas','tipton':'atlas','demers':'atlas',
+              'baker':'atlas','baltay':'astro','hepadmin':'ed', 
+              'astrousr':'astro'}
 
 def get_group_total(group_file): 
     with open(group_file) as gfile: 
@@ -90,6 +91,10 @@ def prog_bar(use, total, width=80, crop=0.75):
 def _per_user_fmt(total, users): 
     return "{:>6.0f} per user".format(float(total)/users)
 
+pr_fmt = '{:<10} {:<10} {:>11} {:<30}'
+title = ('user', 'group', 'use [GB]   ', 'full name')
+empty = ('----', '-----', '-----------', '---------')
+
 def get_by_user(qfile=_qfile): 
     """
     Get the use by user and group. 
@@ -106,9 +111,6 @@ def get_by_user(qfile=_qfile):
     with open(qfile) as quotas: 
         use_by_user = get_user_use(quotas)
 
-    pr_fmt = '{:<10} {:<10} {:>11} {:<30}'
-    title = ('user', 'group', 'use [GB]   ', 'full name')
-    empty = ('----', '-----', '-----------', '---------')
     print pr_fmt.format(*title)
     print pr_fmt.format(*empty)
     for use, group, user in use_by_user:
@@ -124,14 +126,21 @@ def get_by_user(qfile=_qfile):
         print pr_fmt.format(user, group, use_pct, name_user(user))
                 
     print pr_fmt.format(*empty)
-
-    grp_sort = sorted(group_totals.items(), key=lambda x: x[1], reverse=True)
-    for group, total in grp_sort: 
-        per_usr_str = _per_user_fmt(total, group_people[group])
-        print pr_fmt.format('total', group, use_str(total), per_usr_str)
+    print_group_totals(group_totals, group_people, use_str)
     print pr_fmt.format(*empty)
     print pr_fmt.format('total', 'all', hep_total, _per_user_fmt(
             hep_total, sum(group_people.values())))
+
+def print_group_totals(group_totals, group_people, use_str):
+    grp_sort = sorted(group_totals.items(), key=lambda x: x[1], reverse=True)
+    super_totals = Counter()
+    for group, total in grp_sort: 
+        per_usr_str = _per_user_fmt(total, group_people[group])
+        super_totals[hep_groups[group]] += total
+        print pr_fmt.format('total', group, use_str(total), per_usr_str)
+    print pr_fmt.format(*empty)
+    for supergroup, total in super_totals.iteritems(): 
+        print pr_fmt.format('total', supergroup, use_str(total), '')
 
 def get_frac_total(txtfile=_groupfile, verbose=False): 
     if not os.path.isfile(txtfile): 
