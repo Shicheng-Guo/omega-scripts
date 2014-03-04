@@ -126,6 +126,9 @@ mkdir -p ${batch_out_dir}
 
 EOF
 
+# need to increase timeout for dq2-get
+timeout='--sendreceive-timeout 36000'
+
 # header to load all the atlas software
 cat >> $script_name <<EOF
 shopt -s expand_aliases
@@ -141,8 +144,7 @@ opts="--skipConfirm --dq2ClientVersion \${dq2ClientVersionVal} --quiet"
 localSetupDQ2Client \$opts
 
 # increase timeout for dq2 commands
-timeout='--sendreceive-timeout 36000'
-export DQ2_COPY_COMMAND="lcg-cp -v --vo atlas -b -D srmv2 \$timeout"
+export DQ2_COPY_COMMAND="lcg-cp -v --vo atlas -b -D srmv2 $timeout"
 export DQ2_LS_COMMAND='lcg-ls -l -b -D srmv2'
 
 voms-proxy-init -voms atlas -noregen -q -cert local_cert
