@@ -89,7 +89,7 @@ then
 fi 
 if ! $test_run
 then
-    voms-proxy-init -voms atlas -out local_cert
+    voms-proxy-init -voms atlas -out local_cert -hours 96
 fi
 
 if [[ $? != 0 ]] 
