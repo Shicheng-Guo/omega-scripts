@@ -2,16 +2,16 @@
 # -*- mode: python -*-
 
 """
-Parser for the outputs of 'batchload' script. 
+Parser for the outputs of 'batchload' script.
 
 Can take a list of batch outputs as inputs, by default takes all dq3batch*
-in the current directory. The output is intended to be piped into 'batchload', 
-so that restarting unfinished downloads is simple: 
+in the current directory. The output is intended to be piped into 'batchload',
+so that restarting unfinished downloads is simple:
 
 >>> batchcheck | batchload
 
 With the --stale flag, returns a list of 'stale' outputs: there are more
-recent jobs downloading the same dataset. Normally stale outputs are ignored. 
+recent jobs downloading the same dataset. Normally stale outputs are ignored.
 """
 
 import argparse, sys, os, re
@@ -21,74 +21,74 @@ from sys import stderr, stdout
 from collections import Counter
 from os.path import basename
 
-def get_args(raw_args): 
+def get_args(raw_args):
     parser = argparse.ArgumentParser(
-        description=__doc__, 
+        description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('batch_outputs', nargs='*')
     parser.add_argument('-v','--verbose', action='store_true')
     parser.add_argument('-l','--dataset-list', type=_get_ds_list_from_file)
     out_group = parser.add_mutually_exclusive_group()
-    out_group.add_argument('-s','--stale', action='store_true', 
+    out_group.add_argument('-s','--stale', action='store_true',
                            help='print names of older batch outputs')
-    out_group.add_argument('-g','--sites', action='store_true', 
+    out_group.add_argument('-g','--sites', action='store_true',
                            help='print sites where jobs fail')
-    out_group.add_argument('-m','--missing', action='store_true', 
+    out_group.add_argument('-m','--missing', action='store_true',
                            help="print datasets that can't be found")
     args = parser.parse_args(raw_args)
     return args
 
-def run(): 
+def run():
     args = get_args(sys.argv[1:])
-    if not args.batch_outputs: 
+    if not args.batch_outputs:
         args.batch_outputs = glob('batch-output/job-*.log*')
 
     all_batch_out = args.batch_outputs
     batch_out = get_most_recent_batch(all_batch_out)
-    if args.stale: 
+    if args.stale:
         old_batch_files = set(all_batch_out) - set(batch_out)
-        for old_file in old_batch_files: 
+        for old_file in old_batch_files:
             stdout.write(old_file + '\n')
         return
-    elif args.sites: 
+    elif args.sites:
         print_site_stats(batch_out)
-        return 
-    elif args.missing: 
+        return
+    elif args.missing:
         print_missing(batch_out)
-        return 
+        return
     print_incomplete(batch_out, args.verbose, args.dataset_list)
 
-def _get_ds_list_from_file(in_file): 
-    with open(in_file) as ds_list: 
+def _get_ds_list_from_file(in_file):
+    with open(in_file) as ds_list:
         datasets = [ds.strip() for ds in ds_list]
         return datasets
 
-def print_incomplete(batch_out, verbose, expected_datasets=None): 
+def print_incomplete(batch_out, verbose, expected_datasets=None):
     download_results = sorted(get_ds_and_result(x) for x in batch_out)
-    for ds_name, results in download_results: 
-        try: 
+    for ds_name, results in download_results:
+        try:
             n_failed = results['failed']
-        except KeyError: 
+        except KeyError:
             stderr.write('WARNING: {} missing summary\n'.format(
                     results['script']))
-            if verbose: 
+            if verbose:
                 _dump_tail(results)
             n_failed = float('inf')
-        if n_failed != 0: 
+        if n_failed != 0:
             stdout.write(ds_name + '\n')
-            if verbose: 
+            if verbose:
                 stderr.write('-- {} --\n'.format(ds_name))
                 _dump_tail(results)
-    if expected_datasets: 
-        found_datasets = [name for name, results in download_results] 
+    if expected_datasets:
+        found_datasets = [name for name, results in download_results]
         missing = set(expected_datasets) - set(found_datasets)
-        for ds in missing: 
+        for ds in missing:
             stdout.write(ds + '\n')
-    
-def _dump_tail(job_summary_dict, stream=stderr): 
+
+def _dump_tail(job_summary_dict, stream=stderr):
     stream.write('tail of: {}\n'.format(job_summary_dict['script']))
-    for line in job_summary_dict['tail']: 
-        if not line.strip(): 
+    for line in job_summary_dict['tail']:
+        if not line.strip():
             continue
         stream.write(line)
     stream.write('\n')
@@ -96,93 +96,93 @@ def _dump_tail(job_summary_dict, stream=stderr):
 # here be parsing of dq2 output files
 _ds_start_string = 'Querying DQ2 central catalogues to resolve datasetname'
 _ds_failed_string = 'Number of failed file download attempts:'
-def get_ds_and_result(output_name): 
-    with open(output_name) as batch_file: 
+def get_ds_and_result(output_name):
+    with open(output_name) as batch_file:
         dataset_name = _get_dataset(batch_file)
         summary = _get_download_summary(batch_file)
         summary['script'] = output_name
-    return dataset_name, summary 
+    return dataset_name, summary
 
-def get_most_recent_batch(batch_files): 
+def get_most_recent_batch(batch_files):
     """
-    Filter batch output files, taking the only the most recent that apply 
-    to a given dataset. 
+    Filter batch output files, taking the only the most recent that apply
+    to a given dataset.
     """
     most_recent_batch_num = {}
     script_name = {}
     batch_re = re.compile('job-([0-9]+)\.log-[0-9]+')
-    def batch_num(file_name): 
+    def batch_num(file_name):
         return int(batch_re.search(basename(file_name)).group(1))
-    for f in batch_files: 
+    for f in batch_files:
         batch_number = batch_num(f)
-        try: 
-            with open(f) as batch_out: 
+        try:
+            with open(f) as batch_out:
                 ds_name = _get_dataset(batch_out)
-        except EmptyFileError: 
+        except EmptyFileError:
             stderr.write('{} is empty, removing\n'.format(f))
             os.remove(f)
             continue
-        except IOError as err: 
-            if _has_voms_error(f): 
+        except IOError as err:
+            if _has_voms_error(f):
                 stderr.write('{} has voms error, removing\n'.format(f))
                 os.remove(f)
                 continue
             raise IOError(str(err) + ' in ' + f)
         ds_max_so_far = most_recent_batch_num.get(ds_name,0)
-        if ds_max_so_far < batch_number: 
+        if ds_max_so_far < batch_number:
             most_recent_batch_num[ds_name] = batch_number
             script_name[ds_name] = f
     return script_name.values()
 
-class EmptyFileError(IOError): 
-    def __init__(self, what): 
+class EmptyFileError(IOError):
+    def __init__(self, what):
         super(EmptyFileError,self).__init__(what)
 
-def _get_dataset(output_file): 
+def _get_dataset(output_file):
     dataset_name = ''
     output_file.seek(0)
-    for line in islice(output_file, 10): 
-        if line.startswith(_ds_start_string): 
+    for line in islice(output_file, 10):
+        if line.startswith(_ds_start_string):
             ds_name = line.split()[-1].strip()
             return ds_name
-    if output_file.tell() == 0: 
+    if output_file.tell() == 0:
         raise EmptyFileError("nothing in file")
     raise IOError('no dataset name found')
 
-def _get_download_summary(output_file): 
+def _get_download_summary(output_file):
     output_file.seek(0,2) # go to end
     end_pos = output_file.tell()
 
     # last 2k or so bytes are all we need
-    aprox_tail_position = max(end_pos - 4000, 0) 
+    aprox_tail_position = max(end_pos - 4000, 0)
     output_file.seek(aprox_tail_position)
     lines = output_file.readlines()[-10:]
     summary = {}
-    for line in lines: 
-        if line.startswith(_ds_failed_string): 
+    for line in lines:
+        if line.startswith(_ds_failed_string):
             summary['failed'] = int(line.split()[-1])
 
-    if not 'failed' in summary: 
-        for line in lines: 
-            if "No files in dataset or no files left" in line: 
+    if not 'failed' in summary:
+        for line in lines:
+            if "No files in dataset or no files left" in line:
                 summary['failed'] = 0
 
     summary['tail'] = lines
     return summary
 
 # get failure stats here
-def print_site_stats(batch_out): 
+def print_site_stats(batch_out):
     site_counts = Counter()
     site_counts_good = Counter()
-    for bfile in batch_out: 
-        with open(bfile) as output_file: 
+    for bfile in batch_out:
+        with open(bfile) as output_file:
             file_site_counts, good_counts = _get_fail_sites(output_file)
-            if file_site_counts != 'unknown': 
+            if file_site_counts != 'unknown':
                 site_counts += file_site_counts
                 site_counts_good += good_counts
     total = site_counts + site_counts_good
     rates = []
-    for site in total: 
+    for site in total:
         n_pass = site_counts_good.get(site,0)
         n_fail = site_counts.get(site,0)
         n_total = total.get(site,0)
@@ -190,83 +190,83 @@ def print_site_stats(batch_out):
 
     sitelen = max(len(site) for site in total)
     nlen = max(len(str(v)) for v in total.values())
-    for rate, site in sorted(rates): 
+    for rate, site in sorted(rates):
         stdout.write('{:{}}: {:{n}} of {:{n}} failed\n'.format(
-                site.strip(), sitelen, site_counts.get(site,0), 
+                site.strip(), sitelen, site_counts.get(site,0),
                 total[site], n=nlen))
 
-# finding missing datasets 
+# finding missing datasets
 _missing_string = 'No non-blacklisted sites available'
-def print_missing(batch_out): 
-    for bfile in batch_out: 
-        with open(bfile) as output_file: 
+def print_missing(batch_out):
+    for bfile in batch_out:
+        with open(bfile) as output_file:
             output_file.seek(0,2) # go to end
             end_pos = output_file.tell()
 
             # last 2k or so bytes are all we need
-            aprox_tail_position = max(end_pos - 4000, 0) 
+            aprox_tail_position = max(end_pos - 4000, 0)
             output_file.seek(aprox_tail_position)
             lines = output_file.readlines()[-10:]
-            for line in lines: 
-                if _missing_string in line: 
+            for line in lines:
+                if _missing_string in line:
                     dataset_name = _get_dataset(output_file)
                     stdout.write(dataset_name + '\n')
 
 
 _site_marker = ': Using site '
 _summary_marker = 'Download Summary:'
-def _get_fail_sites(output_file): 
+def _get_fail_sites(output_file):
     """
     goes through an output and tries to figure out where jobs were failing.
     """
     ds_site = {}
     output_file.seek(0)
-    for line in output_file: 
-        if _site_marker in line: 
-            try: 
+    for line in output_file:
+        if _site_marker in line:
+            try:
                 ds_name, site = line.split(_site_marker)
-            except ValueError: 
+            except ValueError:
                 stderr.write("ERROR: can't parse {}\n".format(line))
                 continue
             ds_site[ds_name] = site
-    
+
     fail_files = None
     output_file.seek(0)
-    for line in output_file: 
-        if _summary_marker in line: 
+    for line in output_file:
+        if _summary_marker in line:
             fail_files, success_files = _get_failed_files(output_file)
-    if fail_files is None: 
+    if fail_files is None:
         return 'unknown', 'unknown'
 
     site_fail_totals = Counter()
     site_good_totals = Counter()
-    for ds, fails in fail_files.iteritems(): 
+    for ds, fails in fail_files.iteritems():
         site = ds_site.get(ds,'unknown')
         site_fail_totals[site] += fails
-    for ds, good in success_files.iteritems(): 
+    for ds, good in success_files.iteritems():
         site = ds_site.get(ds,'unknown')
         site_good_totals[site] += good
     return site_fail_totals, site_good_totals
 
-def _get_failed_files(output_file): 
+def _get_failed_files(output_file):
     dataset_fail_counts = Counter()
     dataset_success_counts = Counter()
-    for line in output_file: 
-        if line.startswith('File:'): 
+    for line in output_file:
+        if line.startswith('File:'):
             ftag, fname, what = line.split()
             ds = fname.split('/')[0]
             if what == 'FAILED':
                 dataset_fail_counts[ds] += 1
-            elif what == 'SUCCESSFUL': 
+            elif what == 'SUCCESSFUL':
                 dataset_success_counts[ds] += 1
     return dataset_fail_counts, dataset_success_counts
 
-def _has_voms_error(file_name): 
-    with open(file_name) as batch_out: 
-        for line in batch_out: 
-            if "Missing voms proxy. Create one with 'voms-proxy-init" in line: 
+def _has_voms_error(file_name):
+    with open(file_name) as batch_out:
+        for line in batch_out:
+            if "Missing voms proxy. Create one with 'voms-proxy-init" in line:
                 return True
     return False
 
-if __name__ == '__main__': 
+if __name__ == '__main__':
     run()
