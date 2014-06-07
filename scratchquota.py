@@ -14,8 +14,7 @@ import argparse, os, time, math
 _qfile='/share/config/quotas/lustre-scratch-user-quotas.txt'
 _groupfile='/share/config/quotas/lustre-scratch-group-quotas.txt'
 hep_groups = {'golling':'atlas','tipton':'atlas','demers':'atlas',
-              'baker':'atlas','baltay':'astro','hepadmin':'ed', 
-              'astrousr':'astro'}
+              'baker':'atlas','hepadmin':'ed'}
 
 def get_group_total(group_file): 
     with open(group_file) as gfile: 
