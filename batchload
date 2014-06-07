@@ -154,7 +154,7 @@ export DQ2_LS_COMMAND='lcg-ls -l -b -D srmv2'
 # with the --cert option...
 cp local_cert ${CERT_LOC}
 
-voms-proxy-init --voms atlas --noregen --debug
+voms-proxy-init --voms atlas --noregen -q
 
 EOF
 
