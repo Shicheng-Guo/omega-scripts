@@ -5,27 +5,27 @@ usage() {
 usage: ${0##*/} [--help, -*] [-s <simultaneous jobs>] [containers...]
 EOF
 }
-doc() { 
+doc() {
     usage
-    echo 
+    echo
     cat <<EOF
 Creates and submits dq2-get jobs to PBS. One job array will be created
-for the entire list of files. 
+for the entire list of files.
 
-The datasets will be downloaded to your working directory. 
+The datasets will be downloaded to your working directory.
 
-Any additional arguments beginning with a '-' will be passed to dq2-get, 
-along with the argument that follows. 
+Any additional arguments beginning with a '-' will be passed to dq2-get,
+along with the argument that follows.
 
-For example: 
+For example:
 
->>> batchload -f '*.root*' \$(cat list_of_files.txt) 
+>>> batchload -f '*.root*' \$(cat list_of_files.txt)
 
-will submit one job for all the jobs in 'list_of_files.txt', only 
-downloading root files.  
+will submit one job for all the jobs in 'list_of_files.txt', only
+downloading root files.
 
-This is supposed to be stupidly easy to use. If you have questions (or 
-better yet, suggestions) ask Dan. 
+This is supposed to be stupidly easy to use. If you have questions (or
+better yet, suggestions) ask Dan.
 
 EOF
 }
@@ -40,18 +40,18 @@ test_run=false
 
 # number of jobs to ask for simultaneously
 n_simultaneous=50
-while (( $# )) 
-do 
+while (( $# ))
+do
     arg=$1
-    case $1 in 
+    case $1 in
 	--help )
 	    doc
 	    exit 1 ;;
 	--test )
-	    test_run=true 
+	    test_run=true
 	    shift;;
-	-h) 
-	    doc 
+	-h)
+	    doc
 	    exit 1 ;;
 	-s)
 	    shift
@@ -61,16 +61,16 @@ do
 	    dq2_args+=$1" "
 	    shift
 	    dq2_args+=$1" "
-	    shift;; 
+	    shift;;
 	*)
 	    files+=$1" "
 	    shift;;
     esac
 done
 if [[ -z $files ]]
-    then 
+    then
     if [[ ! -t 0 ]]
-    then 
+    then
 	files=$(cat)
     else
 	usage
@@ -83,17 +83,18 @@ fi
 # test and setup dq2
 
 if ! command -v voms-proxy-init > /dev/null
-then 
+then
     echo "voms-proxy-init not found (did you setup dq2?), quitting..." 1>&2
     exit 1
-fi 
+fi
 if ! $test_run
 then
     voms-proxy-init -voms atlas -out local_cert -hours 96
+    CERT_LOC=$(voms-proxy-info -p)
 fi
 
-if [[ $? != 0 ]] 
-then 
+if [[ $? != 0 ]]
+then
     echo 'voms failure, quitting...' 1>&2
     exit 1
 fi
@@ -119,7 +120,7 @@ cat >| $script_name <<EOF
 #PBS -j oe
 #PBS -o ${batch_out_dir}/job-${jid}.log
 
-echo 'submitted from: ' \$PBS_O_WORKDIR 
+echo 'submitted from: ' \$PBS_O_WORKDIR
 cd \$PBS_O_WORKDIR
 
 mkdir -p ${batch_out_dir}
@@ -132,6 +133,8 @@ timeout='--sendreceive-timeout 36000'
 # header to load all the atlas software
 cat >> $script_name <<EOF
 shopt -s expand_aliases
+
+export RUCIO_ACCOUNT=${RUCIO_ACCOUNT}
 
 export ATLAS_LOCAL_ROOT_BASE=/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase
 alias setupATLAS='source \${ATLAS_LOCAL_ROOT_BASE}/user/atlasLocalSetup.sh'
@@ -147,14 +150,18 @@ localSetupDQ2Client \$opts
 export DQ2_COPY_COMMAND="lcg-cp -v --vo atlas -b -D srmv2 $timeout"
 export DQ2_LS_COMMAND='lcg-ls -l -b -D srmv2'
 
-voms-proxy-init -voms atlas -noregen -q -cert local_cert
+# have to copy the cert to the /tmp directory... not sure why, used to work
+# with the --cert option...
+cp local_cert ${CERT_LOC}
+
+voms-proxy-init --voms atlas --noregen --debug
 
 EOF
 
 # write in file array
 echo "file_array=(" >> $script_name
 for f in ${file_array[*]}
-do 
+do
     echo $f >> $script_name
 done
 echo ")" >> $script_name
@@ -170,7 +177,7 @@ dq2-get ${dq2_args} \${file_array[\$PBS_ARRAYID-1]}
 
 EOF
 
-if ! $test_run 
-then 
+if ! $test_run
+then
     qsub  $script_name
 fi
