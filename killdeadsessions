@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+TTY=$(tty | cut -d / -f 3-)
+
+for p in $(w | grep -v ${TTY} | grep ${USER} | awk '{print $2}' )
+    do
+    echo killing $p
+    pkill -9 -t $p
+done
